@@ -8,6 +8,7 @@ export default defineConfig({
     environment: 'node',
     // Note: sequence.concurrent is NOT set in base config
     reporters: ['verbose'],
+    fileParallelism: false,
     sequence: {
       concurrent: false, // Default to non-concurrent execution
     },

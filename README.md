@@ -1,51 +1,72 @@
 # Vitest `sequence.concurrent` Project Config Reproduction
 
-This repository reproduces an issue where `sequence.concurrent` setting does not get passed from the project configuration to Vitest.
+This repository reproduces an issue where `sequence.concurrent` setting does not get passed from the project configuration in Vitest.
 
 ## Setup
 
 - **Node.js**: v24.13.0 (latest stable)
 - **Yarn**: 4.12.0
-- **TypeScript**: ^5.7.3
-- **Vitest**: ^2.1.8
+- **TypeScript**: 5.9.3
+- **Vitest**: 4.0.18
+- **Biome**: 1.9.4 (for formatting and linting)
 
 ## Structure
 
 ```
 .
-├── vitest.config.ts          # Base configuration (no sequence.concurrent)
-├── vitest.project.config.ts  # Project config with sequence.concurrent: true
+├── vitest.config.ts          # Base config with projects
 ├── tests/
-│   ├── suite1.test.ts
-│   ├── suite2.test.ts
-│   └── suite3.test.ts
-└── package.json
+│   ├── suite1.test.ts        # Assigned to 'suite-1' project (concurrent: true)
+│   ├── suite2.test.ts        # Assigned to 'other' project (concurrent: false)
+│   └── suite3.test.ts        # Assigned to 'other' project (concurrent: false)
+├── package.json
+└── biome.json
 ```
 
 ## Issue Description
 
-The `vitest.project.config.ts` file extends the base configuration and sets `sequence.concurrent: true`:
+The `vitest.config.ts` file defines a base configuration with two projects:
+
+1. **suite-1 project**: Includes only `suite1.test.ts` with `sequence.concurrent: true`
+2. **other project**: Includes `suite2.test.ts` and `suite3.test.ts` with `sequence.concurrent: false`
 
 ```typescript
-export default mergeConfig(
-  baseConfig,
-  defineConfig({
-    test: {
-      sequence: {
-        concurrent: true,
+projects: [
+  {
+    extends: true,
+    ...defineProject({
+      test: {
+        name: 'suite-1',
+        include: ['tests/suite1.test.ts'],
+        sequence: {
+          concurrent: true, // Should enable concurrent execution
+        },
       },
-    },
-  })
-);
+    }),
+  },
+  {
+    extends: true,
+    ...defineProject({
+      test: {
+        name: 'other',
+        include: ['tests/*.test.ts'],
+        exclude: ['tests/suite1.test.ts'],
+        sequence: {
+          concurrent: false,
+        },
+      },
+    }),
+  },
+],
 ```
 
 ### Expected Behavior
 
-When running tests with the project configuration, test files should execute concurrently because `sequence.concurrent` is set to `true` in the project config.
+When running `yarn test`, the `suite-1` project should execute its tests concurrently because `sequence.concurrent` is explicitly set to `true` in that project's configuration.
 
 ### Actual Behavior
 
-The `sequence.concurrent` setting from the project configuration is not being applied. Tests run sequentially instead of concurrently.
+The `sequence.concurrent: true` setting from the `suite-1` project configuration is not being applied. Tests in suite1 run sequentially instead of concurrently, ignoring the project-level configuration.
 
 ## Reproduction Steps
 
@@ -54,22 +75,22 @@ The `sequence.concurrent` setting from the project configuration is not being ap
    yarn install
    ```
 
-2. Run tests with base config (sequential execution expected):
+2. Run all tests:
    ```bash
-   yarn test --config=vitest.config.ts
+   yarn test
    ```
 
-3. Run tests with project config (concurrent execution expected):
+3. Run only the suite-1 project (which should run concurrently):
    ```bash
-   yarn test --config=vitest.project.config.ts
+   yarn vitest run --project suite-1
    ```
 
-4. Observe that both commands run tests sequentially, even though the project config explicitly sets `sequence.concurrent: true`.
+4. Observe that suite1 tests run sequentially even though `sequence.concurrent: true` is set for the `suite-1` project.
 
 ## How to Verify Concurrent Execution
 
 When `sequence.concurrent` is working correctly:
-- Multiple test files should run in parallel
+- Multiple test files within the same suite should run in parallel
 - Console logs from different test files should be interleaved
 - Total execution time should be shorter
 
@@ -78,6 +99,13 @@ When running sequentially:
 - Console logs appear in order by file
 - Total execution time is longer
 
+## Additional Commands
+
+- `yarn format` - Format code with Biome
+- `yarn lint` - Lint and fix code with Biome
+- `yarn check` - Run both formatting and linting
+- `yarn test:verbose` - Run tests with verbose output
+
 ## Additional Notes
 
-The project uses `mergeConfig` from Vitest to properly merge the base and project configurations, but the `sequence.concurrent` setting is not being honored in the merged result.
+The project uses Vitest's native project configuration with `defineProject` and `extends: true` to inherit base settings. However, the `sequence.concurrent` setting defined at the project level is not being honored during test execution.
