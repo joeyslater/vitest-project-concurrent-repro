@@ -33,7 +33,7 @@ export default defineConfig({
             include: ['tests/*.test.ts'],
             exclude: ['tests/suite1.test.ts'],
             sequence: {
-              concurrent: true, // Enable concurrency for this suite
+              concurrent: false,
             },
           },
         }),
